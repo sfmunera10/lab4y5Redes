@@ -1,7 +1,6 @@
 package tcp;
 
 import java.io.*;
-import java.math.BigInteger;
 import java.net.*;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -14,6 +13,7 @@ public class TCPServer{
 		ServerSocket ss = new ServerSocket(5056); 
 		String fileToSend = "";
 		int numClientsDesired = 0;
+		int buffSize = 65536;
 		System.out.println("WELCOME TO A SIMPLE FILE TRANSFER THROUGH TCP");
 		String filename;
 		filename= "C:/Users/Lenovo/Desktop/SEMESTRE 201820/Redes/LAB 4 y 5/TCP/server/testl.wmv";
@@ -34,6 +34,7 @@ public class TCPServer{
 			whichFile = br.readLine();
 			if(whichFile.equals("1")){
 				fileToSend = filename;
+				buffSize = buffSize*4;
 				break;
 			} 
 			else if(whichFile.equals("2")){
@@ -44,7 +45,7 @@ public class TCPServer{
 				System.out.println("Not a valid entry :(");
 			}
 		}
-		
+
 		BufferedReader br2=new BufferedReader(new InputStreamReader(System.in));
 		System.out.println("How many clients would you like to connect to this server?");
 		System.out.println("Type in the number of clients you would like: ");
@@ -93,16 +94,15 @@ public class TCPServer{
 					DataInputStream dis = new DataInputStream(so.getInputStream()); 
 					DataOutputStream dos = new DataOutputStream(so.getOutputStream());
 					// create a new thread object
-					Thread t = new ClientHandler(so, dis, dos, fileToSend, gate);
+					Thread t = new ClientHandler(so, dis, dos, fileToSend, gate, buffSize);
 					threads.add(t);
 				}  
 				System.out.println("Number of threads ready: " + threads.size());
-
 				for(Thread th: threads){
 					// Invoking the start() method 
 					th.start();
 				}
-				
+
 				BufferedReader br3=new BufferedReader(new InputStreamReader(System.in));
 				System.out.println();
 				System.out.println("Type Yes to start all threads: ");
@@ -120,18 +120,21 @@ public class TCPServer{
 				}
 				System.out.println("All threads started");
 				br.close();
-				
+				br2.close();
+				br3.close();
+
 				for (Thread thread : threads) {
-				    thread.join();
-				    System.out.println("Waiting for thread to finish...");
+					thread.join();
+					System.out.println("Waiting for thread to finish...");
 				}
 				for(Socket so: clients){
 					so.close();
 					System.out.println("Done.");
 				}
+				ss.close();
+				break;
 			} 
 			catch (Exception e){ 
-				ss.close();
 				e.printStackTrace(); 
 			}
 		}
@@ -145,18 +148,38 @@ class ClientHandler extends Thread{
 	final Socket s;
 	final String fileToSend;
 	final CyclicBarrier gate;
-
+	final int buffSize;
+	
 	// Constructor 
 	public ClientHandler(Socket s, DataInputStream dis, DataOutputStream dos, String fileToSend,
-			CyclicBarrier gate)  
+			CyclicBarrier gate, int buffSize)  
 	{ 
 		this.s = s; 
 		this.dis = dis; 
 		this.dos = dos;
 		this.fileToSend = fileToSend;
 		this.gate = gate;
+		this.buffSize = buffSize;
 	}
-	
+
+	public byte[] createChecksum(String filename) throws Exception {
+		InputStream fis =  new FileInputStream(filename);
+
+		byte[] buffer = new byte[buffSize];
+		MessageDigest complete = MessageDigest.getInstance("MD5");
+		int numRead;
+
+		do {
+			numRead = fis.read(buffer);
+			if (numRead > 0) {
+				complete.update(buffer, 0, numRead);
+			}
+		} while (numRead != -1);
+
+		fis.close();
+		return complete.digest();
+	}
+
 	@Override
 	public void run()  
 	{
@@ -173,40 +196,49 @@ class ClientHandler extends Thread{
 				dos.flush();  
 
 				BufferedInputStream bis = 
-			               new BufferedInputStream(
-			                    new FileInputStream(fileToSend));
+						new BufferedInputStream(
+								new FileInputStream(fileToSend));
 				BufferedOutputStream bos = 
-			               new BufferedOutputStream(s.getOutputStream());
-				
+						new BufferedOutputStream(s.getOutputStream());
+
 				File f=new File(fileToSend);
 				System.out.println("Attempting to read from file in: "+f.getCanonicalPath());
-				
 				long sz=(int) f.length();
-
-				byte buffer[]=new byte [51200];
+				//262144 (65536*4) for large file
+				//65536 for medium file
+				byte buffer[]=new byte [buffSize];
 
 				dos.writeUTF(Long.toString(sz)); 
 				dos.flush(); 
-
+				
+				System.out.println("");
 				System.out.println ("Size: "+sz);
 				System.out.println ("Buf size: "+ s.getReceiveBufferSize());
+				
+				byte[] digest = createChecksum(fileToSend);
+				
+				String digStr = "";
+				
+				for(byte by: digest){
+					digStr += by;
+				}
+				System.out.println("Sending checksum of the file to client...");
+				dos.writeUTF(digStr);
+				dos.flush();
 
-				MessageDigest md = MessageDigest.getInstance("MD5");
-				String md5 = "";
 				int len = 0;
-		        while ((len = bis.read(buffer)) > 0){
-		        	md.update(buffer, 0, len);
-					md5 += new BigInteger(1, md.digest()).toString(16) + ",";
-		        	bos.write(buffer, 0, len);
-		        }
-		        System.out.println("Checking file integrity with client...");
-		        dos.writeUTF(md5);
-				bis.close();
+				long bef = System.currentTimeMillis();
+				while ((len = bis.read(buffer)) > 0){
+					bos.write(buffer, 0, len);
+				}
+				dos.flush();
 				bos.flush();
-				bos.close();
-				dos.close();
+				long aft = System.currentTimeMillis();
+				System.out.println("Time elapsed: " + ((aft-bef)/1000));
 				System.out.println("..ok");
 				System.out.println("Send Complete");
+				bis.close();
+				bos.close();
 			}   
 		}
 		catch(Exception e)

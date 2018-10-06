@@ -1,12 +1,32 @@
 package tcp;
 
 import java.io.*;
-import java.math.BigInteger;
 import java.net.*;
 import java.security.MessageDigest; 
 
 // Client class 
-public class TCPClient{ 
+public class TCPClient{
+	
+	private static int buffSize = 65536;
+	
+	public static byte[] createChecksum(String filename) throws Exception {
+		InputStream fis =  new FileInputStream(filename);
+
+		byte[] buffer = new byte[buffSize];
+		MessageDigest complete = MessageDigest.getInstance("MD5");
+		int numRead;
+
+		do {
+			numRead = fis.read(buffer);
+			if (numRead > 0) {
+				complete.update(buffer, 0, numRead);
+			}
+		} while (numRead != -1);
+
+		fis.close();
+		return complete.digest();
+	}
+	
 	public static void main(String[] args) throws IOException{ 
 		// getting localhost ip 
 		InetAddress ip = InetAddress.getByName("localhost"); 
@@ -17,7 +37,7 @@ public class TCPClient{
 			// obtaining input and out streams 
 			DataInputStream dis = new DataInputStream(s.getInputStream()); 
 			DataOutputStream dos = new DataOutputStream(s.getOutputStream()); 
-
+			System.out.println("Connected to server with status 'isConnected' = " + s.isConnected());
 			System.out.println("Notifying to server that client is ready...");
 			String str="ready",filename="";  
 			try{ 
@@ -27,6 +47,9 @@ public class TCPClient{
 				filename=dis.readUTF(); 
 				System.out.println("Receving file: "+filename);
 				String[] pathSeparator = filename.split("/");
+				if(filename.contains("testl")){
+					buffSize = buffSize*4;
+				}
 				filename = pathSeparator[pathSeparator.length-1];
 				filename = "C:/Users/Lenovo/Desktop/SEMESTRE 201820/Redes/LAB 4 y 5/TCP/client/"+ s.getLocalPort() + filename;
 				System.out.println("Saving as file: "+filename);
@@ -39,45 +62,37 @@ public class TCPClient{
 
 				long sz=Long.parseLong(dis.readUTF());
 				System.out.println ("File Size: "+(sz/(1024*1024))+" MB");
+				
+				System.out.println("Receiving checksum from server...");
+				String servCS = dis.readUTF();
 
-				byte buffer[]=new byte [51200];
-				System.out.println("Receiving file..");
+				byte buffer[]=new byte [buffSize];
+				System.out.println("Receiving file...");
 				
-				
-				String md5Server = "", md5Client = "";
-				MessageDigest md = MessageDigest.getInstance("MD5");
-				int countErrors = 0;
 				int len = 0;
+				
 		        while ((len = bis.read(buffer)) > 0) {
-					md.update(buffer, 0, len);
-					md5Client += new BigInteger(1, md.digest()).toString(16) + ",";
 		            bos.write(buffer, 0, len);
 		        }
-		        md5Server = dis.readUTF();
+		        bos.flush();
 		        System.out.println("Checking file integrity with server...");
-		        String[] servMD5 = md5Server.split(",");
-		        String[] cliMD5 = md5Client.split(",");
 		        
-		        if(servMD5.length != cliMD5.length){
-		        	countErrors = 100;
-		        }
-		        
-		        for(int i = 0; i<servMD5.length; i++){
-		        	if(!servMD5[i].equals(cliMD5[i])){
-		        		countErrors++;
-		        	}
-		        }
-		        
-				if(countErrors > 1){
+		        byte[] digest = createChecksum(filename);
+		        String cliCS = "";
+				for(byte bytee: digest){
+					cliCS += bytee;
+				}
+				
+				if(!cliCS.equals(servCS)){
 					System.out.println("FILE INTEGRITY COMPROMISED. FILE MAY BE CORRUPTED.");
 				}
 				else{
 					System.out.println("SUCCESSFULL INTEGRITY VERIFICATION.");
 				}
 				System.out.println("Completed.");
+				dos.flush();
 				bis.close();
-				bos.flush();
-				bos.close();
+			    bos.close();
 				dis.close();
 				dos.close();
 			}
