@@ -27,9 +27,9 @@ public class UDPServer
 		fileToSend = "";
 		System.out.println("WELCOME TO A SIMPLE FILE TRANSFER THROUGH UDP");
 		String filename;
-		filename= "C:/Users/Lenovo/Desktop/SEMESTRE201820/Redes/LAB4y5/UDP/MultiThreadtest/testl.wmv";
+		filename= "testl.wmv";
 		String filename2;
-		filename2= "C:/Users/Lenovo/Desktop/SEMESTRE201820/Redes/LAB4y5/UDP/MultiThreadtest/testm.wmv";
+		filename2= "testm.wmv";
 		System.out.println("Files: ");
 		System.out.println(filename + " Capoeira (Large Footage)");
 		System.out.println(filename2 + " Capoeira (Medium Footage)");

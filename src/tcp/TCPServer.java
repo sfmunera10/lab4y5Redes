@@ -1,17 +1,7 @@
 package tcp;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.io.*;
+import java.net.*;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.concurrent.CyclicBarrier; 
@@ -104,7 +94,7 @@ public class TCPServer{
 					DataInputStream dis = new DataInputStream(so.getInputStream()); 
 					DataOutputStream dos = new DataOutputStream(so.getOutputStream());
 					// create a new thread object
-					Thread t = new ClientHandler(so, dis, dos, fileToSend, gate, buffSize, numClientsDesired);
+					Thread t = new ClientHandler(so, dis, dos, fileToSend, gate, buffSize);
 					threads.add(t);
 				}  
 				System.out.println("Number of threads ready: " + threads.size());
@@ -113,7 +103,30 @@ public class TCPServer{
 					th.start();
 				}
 
-				
+				BufferedReader br3=new BufferedReader(new InputStreamReader(System.in));
+				System.out.println();
+				System.out.println("Type Yes to start all threads: ");
+				String yas = "";
+
+				while(!(yas.equals("Yes"))){
+					yas = br3.readLine();
+					if(yas.equals("Yes")){
+						gate.await();
+						break;
+					}
+					else{
+						System.out.println("Not a valid entry :(");
+					}
+				}
+				System.out.println("All threads started");
+				br.close();
+				br2.close();
+				br3.close();
+
+				for (Thread thread : threads) {
+					thread.join();
+					System.out.println("Waiting for thread to finish...");
+				}
 				for(Socket so: clients){
 					so.close();
 					System.out.println("Done.");
@@ -136,11 +149,10 @@ class ClientHandler extends Thread{
 	final String fileToSend;
 	final CyclicBarrier gate;
 	final int buffSize;
-	final int clientsDesired;
-
+	
 	// Constructor 
 	public ClientHandler(Socket s, DataInputStream dis, DataOutputStream dos, String fileToSend,
-			CyclicBarrier gate, int buffSize, int clientsDesired)  
+			CyclicBarrier gate, int buffSize)  
 	{ 
 		this.s = s; 
 		this.dis = dis; 
@@ -148,7 +160,6 @@ class ClientHandler extends Thread{
 		this.fileToSend = fileToSend;
 		this.gate = gate;
 		this.buffSize = buffSize;
-		this.clientsDesired = clientsDesired;
 	}
 
 	public byte[] createChecksum(String filename) throws Exception {
@@ -199,27 +210,31 @@ class ClientHandler extends Thread{
 
 				dos.writeUTF(Long.toString(sz)); 
 				dos.flush(); 
-
+				
 				System.out.println("");
 				System.out.println ("Size: "+sz);
 				System.out.println ("Buf size: "+ s.getReceiveBufferSize());
-
+				
 				byte[] digest = createChecksum(fileToSend);
-
+				
 				String digStr = "";
-
+				
 				for(byte by: digest){
 					digStr += by;
 				}
 				System.out.println("Sending checksum of the file to client...");
 				dos.writeUTF(digStr);
 				dos.flush();
+
 				int len = 0;
+				long bef = System.currentTimeMillis();
 				while ((len = bis.read(buffer)) > 0){
 					bos.write(buffer, 0, len);
 				}
 				dos.flush();
 				bos.flush();
+				long aft = System.currentTimeMillis();
+				System.out.println("Time elapsed: " + ((aft-bef)/1000));
 				System.out.println("..ok");
 				System.out.println("Send Complete");
 				bis.close();

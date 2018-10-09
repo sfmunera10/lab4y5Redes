@@ -43,7 +43,7 @@ public class TCPClient{
 	
 	public static void main(String[] args) throws IOException{ 
 		// getting localhost ip 
-		InetAddress ip = InetAddress.getByName("157.253.205.115"); 
+		InetAddress ip = InetAddress.getByName("localhost"); 
 		// establish the connection with server port 5056 
 		Socket s = new Socket(ip, 5056);
 		try
@@ -53,9 +53,10 @@ public class TCPClient{
 			DataOutputStream dos = new DataOutputStream(s.getOutputStream()); 
 			System.out.println("Connected to server with status 'isConnected' = " + s.isConnected());
 			System.out.println("Notifying to server that client is ready...");
-			String str="ready",filename="";  
+			String filename="";  
 			try{ 
-				dos.writeUTF(str); 
+				
+				dos.writeUTF("ready"); 
 				dos.flush();  
 
 				filename=dis.readUTF(); 

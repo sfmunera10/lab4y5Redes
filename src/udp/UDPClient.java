@@ -38,7 +38,7 @@ public class UDPClient
 	{
 		try
 		{
-			host=InetAddress.getLocalHost();
+			host=InetAddress.getByName("localhost");
 		}
 		catch(UnknownHostException uhEx)
 		{
